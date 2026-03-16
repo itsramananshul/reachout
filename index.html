@@ -1375,21 +1375,87 @@ async function startSend() {
     status: 'sending'
   }).select().single();
 
-  function sendNext() {
+  // Get current session for auth token
+  const { data: { session } } = await sb.auth.getSession();
+  const authToken = session?.access_token;
+
+  // Build personalised email for a job
+  function buildEmail(job) {
+    const fn = getVal('cp-fn') || userProfile.full_name?.split(' ')[0] || '';
+    const ln = getVal('cp-ln') || userProfile.full_name?.split(' ').slice(1).join(' ') || '';
+    const title = getVal('cp-title') || userProfile.title || '';
+    const skills = getTags('cp-skills').slice(0,3).join(', ') || (userProfile.skills||[]).slice(0,3).join(', ');
+    const rec = recruiters[job.id] || { name: 'Hiring Manager' };
+    const vars = {
+      '{{recruiter_name}}': rec.name.split(' ')[0],
+      '{{company_name}}': job.company,
+      '{{job_title}}': job.title,
+      '{{your_name}}': `${fn} ${ln}`.trim(),
+      '{{your_title}}': title,
+      '{{your_skills}}': skills,
+    };
+    const r = s => Object.entries(vars).reduce((a,[k,v]) => a.replaceAll(k,v), s);
+    return {
+      subject: r(getVal('tpl-subject') || ''),
+      body: r(getVal('tpl-body') || '')
+    };
+  }
+
+  async function sendOneEmail(job) {
+    const rec = recruiters[job.id] || { email: `recruiting@${job.company.toLowerCase().replace(/\s/g,'')}.com`, name: 'Hiring Manager', conf: 'Low' };
+    const { subject, body } = buildEmail(job);
+
+    // Save outreach record first
+    let jobRecord = null;
+    if (campaign) {
+      const { data } = await sb.from('outreach_jobs').insert({
+        campaign_id: campaign.id, user_id: currentUser.id,
+        job_title: job.title, company: job.company,
+        location: job.location, source: job.source,
+        recruiter_name: rec.name, recruiter_email: rec.email,
+        recruiter_confidence: rec.conf,
+        email_subject: subject, status: 'pending'
+      }).select().single();
+      jobRecord = data;
+    }
+
+    // Call Supabase Edge Function to send real email
+    const res = await fetch(
+      'https://rwxsxoavfktsinmgexfo.supabase.co/functions/v1/send-email',
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          to: rec.email,
+          subject,
+          body,
+          job_id: jobRecord?.id
+        })
+      }
+    );
+
+    const result = await res.json();
+    return { ok: result.success, error: result.error };
+  }
+
+  async function sendNext() {
     if (i >= jobs.length) {
-      setTimeout(async () => {
-        // Update campaign
-        if (campaign) {
-          await sb.from('campaigns').update({ status: 'sent', sent, failed, sent_at: new Date().toISOString() }).eq('id', campaign.id);
-          campaigns.unshift({ ...campaign, status: 'sent', sent, failed });
-        }
-        document.getElementById('in-send').classList.add('hidden');
-        document.getElementById('done-view').classList.remove('hidden');
-        document.getElementById('done-sent').textContent = sent;
-        document.getElementById('done-fail').textContent = failed;
-        document.getElementById('done-cos').textContent = new Set(jobs.map(j => j.company)).size;
-        renderDashboard();
-      }, 600);
+      if (campaign) {
+        await sb.from('campaigns').update({
+          status: 'sent', sent, failed,
+          sent_at: new Date().toISOString()
+        }).eq('id', campaign.id);
+        campaigns.unshift({ ...campaign, status: 'sent', sent, failed });
+      }
+      document.getElementById('in-send').classList.add('hidden');
+      document.getElementById('done-view').classList.remove('hidden');
+      document.getElementById('done-sent').textContent = sent;
+      document.getElementById('done-fail').textContent = failed;
+      document.getElementById('done-cos').textContent = new Set(jobs.map(j => j.company)).size;
+      renderDashboard();
       return;
     }
 
@@ -1398,33 +1464,26 @@ async function startSend() {
     const qm = document.getElementById('lqm-' + job.id);
     qs.className = 'qs qs-go'; qs.textContent = '↻'; qm.textContent = 'Sending…';
 
-    setTimeout(async () => {
-      const ok = Math.random() > 0.08;
+    try {
+      const { ok, error } = await sendOneEmail(job);
       if (ok) {
         sent++;
         qs.className = 'qs qs-ok'; qs.textContent = '✓'; qs.style.animation = 'none';
         qm.textContent = 'Sent ✓'; qm.style.color = 'var(--green)';
-        // Save outreach record
-        if (campaign) {
-          const rec = recruiters[job.id] || {};
-          await sb.from('outreach_jobs').insert({
-            campaign_id: campaign.id, user_id: currentUser.id,
-            job_title: job.title, company: job.company,
-            location: job.location, source: job.source,
-            recruiter_name: rec.name, recruiter_email: rec.email,
-            recruiter_confidence: rec.conf,
-            email_subject: refreshedSubject(job),
-            status: 'sent', sent_at: new Date().toISOString()
-          });
-        }
       } else {
-        failed++;
-        qs.className = 'qs qs-fail'; qs.textContent = '✗'; qs.style.animation = 'none';
-        qm.textContent = 'Failed — address bounced'; qm.style.color = 'var(--red)';
+        throw new Error(error || 'Unknown error');
       }
-      document.getElementById('send-p').textContent = `${i+1} of ${jobs.length} processed (${Math.round((i+1)/jobs.length*100)}%)`;
-      i++; sendNext();
-    }, 700 + Math.random() * 600);
+    } catch(err) {
+      failed++;
+      qs.className = 'qs qs-fail'; qs.textContent = '✗'; qs.style.animation = 'none';
+      qm.textContent = 'Failed: ' + (err.message || 'Send error'); qm.style.color = 'var(--red)';
+    }
+
+    document.getElementById('send-p').textContent =
+      `${i+1} of ${jobs.length} processed (${Math.round((i+1)/jobs.length*100)}%)`;
+    i++;
+    // Small delay between sends to avoid Gmail rate limits
+    setTimeout(sendNext, 500);
   }
 
   sendNext();
