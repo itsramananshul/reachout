@@ -849,38 +849,55 @@ let campaigns = [];
 // AUTH
 // ════════════════════════════════════════════
 async function initAuth() {
+  // Handle OAuth redirect — Supabase puts tokens in the URL hash/query
+  if (window.location.hash.includes('access_token') ||
+      window.location.search.includes('code=')) {
+    try {
+      await sb.auth.exchangeCodeForSession(window.location.href);
+    } catch(e) { /* ignore — getSession below will pick it up */ }
+  }
+
   const { data: { session } } = await sb.auth.getSession();
   if (session?.user) {
     currentUser = session.user;
     await loadUserData();
+    // Save Google token if present
+    if (session.provider_token && session.user.app_metadata?.provider === 'google') {
+      await saveGoogleToken(session);
+    }
+    // Clean the URL after OAuth redirect
+    window.history.replaceState({}, document.title, window.location.pathname);
     showPage('page-app');
   }
+
   sb.auth.onAuthStateChange(async (event, session) => {
     if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
       currentUser = session.user;
       await loadUserData();
-
-      // If signed in via Google, auto-save gmail token + email
       if (session.provider_token && session.user.app_metadata?.provider === 'google') {
-        const gmailEmail = session.user.email;
-        await sb.from('user_api_keys').upsert({
-          user_id: session.user.id,
-          gmail_email: gmailEmail,
-          gmail_access_token: session.provider_token,
-          gmail_refresh_token: session.provider_refresh_token || null,
-          updated_at: new Date().toISOString()
-        });
-        userKeys.gmail_email = gmailEmail;
-        userKeys.gmail_access_token = session.provider_token;
+        await saveGoogleToken(session);
       }
-
       hideAuth();
       showPage('page-app');
     } else if (event === 'SIGNED_OUT') {
       currentUser = null;
+      userProfile = {}; userKeys = {}; campaigns = [];
       showPage('page-landing');
     }
   });
+}
+
+async function saveGoogleToken(session) {
+  const gmailEmail = session.user.email;
+  await sb.from('user_api_keys').upsert({
+    user_id: session.user.id,
+    gmail_email: gmailEmail,
+    gmail_access_token: session.provider_token,
+    gmail_refresh_token: session.provider_refresh_token || null,
+    updated_at: new Date().toISOString()
+  });
+  userKeys.gmail_email = gmailEmail;
+  userKeys.gmail_access_token = session.provider_token;
 }
 
 function showAuth(tab) {
