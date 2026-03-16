@@ -1346,24 +1346,27 @@ async function startSend() {
   const sel = [...selectedJobs];
   const jobs = allJobs.filter(j => sel.includes(j.id));
 
+  if (jobs.length === 0) { alert('No jobs selected.'); return; }
+
   document.getElementById('pre-send').classList.add('hidden');
   document.getElementById('in-send').classList.remove('hidden');
   document.getElementById('campaign-bottom-nav').classList.add('hidden');
 
+  // Render queue with string-safe IDs
   const lq = document.getElementById('live-queue');
-  lq.innerHTML = jobs.map(j => {
-    const rec = recruiters[j.id] || { email: `jobs@${j.company.toLowerCase()}.com` };
+  lq.innerHTML = jobs.map((j, idx) => {
+    const rec = recruiters[j.id] || { email: `jobs@${j.company.toLowerCase().replace(/\s/g,'')}.com` };
     return `<div class="queue-item">
-      <div class="qs qs-wait" id="lqs-${j.id}">⏳</div>
+      <div class="qs qs-wait" id="lqs-${idx}">⏳</div>
       <div class="qi-info">
         <div class="qi-title">${j.title} @ ${j.company}</div>
-        <div class="qi-meta" id="lqm-${j.id}">Queued</div>
+        <div class="qi-meta" id="lqm-${idx}">Queued</div>
         <div class="qi-email">${rec.email}</div>
       </div>
     </div>`;
   }).join('');
 
-  let sent = 0, failed = 0, i = 0;
+  let sent = 0, failed = 0;
 
   // Save campaign to Supabase
   const { data: campaign } = await sb.from('campaigns').insert({
@@ -1378,6 +1381,117 @@ async function startSend() {
   // Get current session for auth token
   const { data: { session } } = await sb.auth.getSession();
   const authToken = session?.access_token;
+
+  if (!authToken) {
+    document.getElementById('send-p').textContent = 'Error: Not logged in. Please refresh and try again.';
+    return;
+  }
+
+  // Build personalised email for a job
+  function buildEmail(job) {
+    const fn = getVal('cp-fn') || userProfile.full_name?.split(' ')[0] || '';
+    const ln = getVal('cp-ln') || userProfile.full_name?.split(' ').slice(1).join(' ') || '';
+    const title = getVal('cp-title') || userProfile.title || '';
+    const skills = getTags('cp-skills').slice(0,3).join(', ') || (userProfile.skills||[]).slice(0,3).join(', ');
+    const rec = recruiters[job.id] || { name: 'Hiring Manager' };
+    const vars = {
+      '{{recruiter_name}}': rec.name.split(' ')[0],
+      '{{company_name}}': job.company,
+      '{{job_title}}': job.title,
+      '{{your_name}}': `${fn} ${ln}`.trim(),
+      '{{your_title}}': title,
+      '{{your_skills}}': skills,
+    };
+    const r = s => Object.entries(vars).reduce((a,[k,v]) => a.replaceAll(k,v), s);
+    return { subject: r(getVal('tpl-subject') || ''), body: r(getVal('tpl-body') || '') };
+  }
+
+  async function sendOneEmail(job) {
+    const rec = recruiters[job.id] || { email: `recruiting@${job.company.toLowerCase().replace(/\s/g,'')}.com`, name: 'Hiring Manager', conf: 'Low' };
+    const { subject, body } = buildEmail(job);
+
+    // Save outreach record
+    let jobRecord = null;
+    if (campaign) {
+      const { data } = await sb.from('outreach_jobs').insert({
+        campaign_id: campaign.id, user_id: currentUser.id,
+        job_title: job.title, company: job.company,
+        location: job.location, source: job.source,
+        recruiter_name: rec.name, recruiter_email: rec.email,
+        recruiter_confidence: rec.conf,
+        email_subject: subject, status: 'pending'
+      }).select().single();
+      jobRecord = data;
+    }
+
+    // Call Edge Function
+    const res = await fetch(
+      'https://rwxsxoavfktsinmgexfo.supabase.co/functions/v1/send-email',
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ to: rec.email, subject, body, job_id: jobRecord?.id })
+      }
+    );
+
+    if (!res.ok && res.status !== 400) {
+      throw new Error(`Server error ${res.status} — is the Edge Function deployed?`);
+    }
+
+    const result = await res.json();
+    if (!result.success) throw new Error(result.error || 'Send failed');
+    return true;
+  }
+
+  // Send all jobs sequentially
+  for (let i = 0; i < jobs.length; i++) {
+    const job = jobs[i];
+    const qs = document.getElementById(`lqs-${i}`);
+    const qm = document.getElementById(`lqm-${i}`);
+
+    if (qs) { qs.className = 'qs qs-go'; qs.textContent = '↻'; qs.style.animation = 'spin 1.2s linear infinite'; }
+    if (qm) qm.textContent = 'Sending…';
+
+    document.getElementById('send-p').textContent =
+      `Sending ${i+1} of ${jobs.length}…`;
+
+    try {
+      await sendOneEmail(job);
+      sent++;
+      if (qs) { qs.className = 'qs qs-ok'; qs.textContent = '✓'; qs.style.animation = 'none'; }
+      if (qm) { qm.textContent = 'Sent ✓'; qm.style.color = 'var(--green)'; }
+    } catch(err) {
+      failed++;
+      if (qs) { qs.className = 'qs qs-fail'; qs.textContent = '✗'; qs.style.animation = 'none'; }
+      if (qm) { qm.textContent = '❌ ' + err.message; qm.style.color = 'var(--red)'; }
+      console.error('Send error for', job.company, ':', err.message, err);
+    }
+
+    document.getElementById('send-p').textContent =
+      `${i+1} of ${jobs.length} processed (${Math.round((i+1)/jobs.length*100)}%)`;
+
+    // Small delay between sends
+    if (i < jobs.length - 1) await new Promise(r => setTimeout(r, 600));
+  }
+
+  // Finalize
+  if (campaign) {
+    await sb.from('campaigns').update({
+      status: 'sent', sent, failed,
+      sent_at: new Date().toISOString()
+    }).eq('id', campaign.id);
+    campaigns.unshift({ ...campaign, status: 'sent', sent, failed });
+  }
+
+  document.getElementById('in-send').classList.add('hidden');
+  document.getElementById('done-view').classList.remove('hidden');
+  document.getElementById('done-sent').textContent = sent;
+  document.getElementById('done-fail').textContent = failed;
+  document.getElementById('done-cos').textContent = new Set(jobs.map(j => j.company)).size;
+  renderDashboard();
 
   // Build personalised email for a job
   function buildEmail(job) {
