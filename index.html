@@ -353,6 +353,15 @@ code{font-family:monospace;font-size:12px;background:var(--surface3);padding:2px
 
     <!-- Sign In -->
     <div id="form-signin">
+      <button class="btn btn-ghost" style="width:100%;justify-content:center;gap:10px;margin-bottom:16px;padding:12px" onclick="signInWithGoogle()">
+        <svg width="16" height="16" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z"/></svg>
+        Continue with Google
+      </button>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+        <span style="font-size:12px;color:var(--muted)">or sign in with email</span>
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+      </div>
       <div class="field"><label>Email</label><input type="email" id="si-email" placeholder="you@gmail.com"/></div>
       <div class="field"><label>Password</label><input type="password" id="si-pass" placeholder="••••••••"/></div>
       <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:4px" id="si-btn" onclick="signIn()">Sign In →</button>
@@ -721,30 +730,44 @@ code{font-family:monospace;font-size:12px;background:var(--surface3);padding:2px
           <div class="api-header">
             <div class="api-logo" style="background:#fff">📧</div>
             <div class="api-info">
-              <div class="api-name">Gmail <span style="color:var(--red);font-size:13px;font-family:normal">Required</span></div>
-              <div class="api-desc">Emails are sent from your own Gmail account for maximum trust. We request only Send permission.</div>
-              <div class="api-status" id="gmail-status-badge" style="display:none"><span>●</span> <span id="gmail-status-text">Connected</span></div>
+              <div class="api-name">Gmail <span style="color:var(--red);font-size:13px">Required</span></div>
+              <div class="api-desc">Emails are sent from your own Gmail. We request only <strong>Send</strong> permission — we can never read your inbox.</div>
+              <div class="api-status api-ok" id="gmail-status-badge" style="display:none">● <span id="gmail-status-text">Connected</span></div>
             </div>
           </div>
-          <div class="api-steps">
-            <div class="api-steps-title">How to connect Gmail</div>
-            <div class="api-step"><div class="api-step-num">1</div><div>Go to <a href="https://console.cloud.google.com" target="_blank">console.cloud.google.com</a> and create a new project named "ReachOut"</div></div>
-            <div class="api-step"><div class="api-step-num">2</div><div>Go to <strong>APIs & Services → Enable APIs</strong> → search and enable <strong>Gmail API</strong></div></div>
-            <div class="api-step"><div class="api-step-num">3</div><div>Go to <strong>OAuth consent screen</strong> → External → fill in app name "ReachOut", your email</div></div>
-            <div class="api-step"><div class="api-step-num">4</div><div>Go to <strong>Credentials → Create Credentials → OAuth Client ID</strong> → Web application</div></div>
-            <div class="api-step"><div class="api-step-num">5</div><div>Add <code>https://rwxsxoavfktsinmgexfo.supabase.co/auth/v1/callback</code> as an Authorized redirect URI</div></div>
-            <div class="api-step"><div class="api-step-num">6</div><div>Copy the Client ID and Client Secret — paste them into Supabase Auth → Google provider</div></div>
-          </div>
-          <div id="gmail-connected-info" class="hidden mb-16">
-            <div class="api-connected-info"><span>✅</span> Connected as <strong id="gmail-email-show"></strong></div>
-          </div>
-          <div class="field"><label>Your Gmail Address (after connecting)</label>
-            <div class="api-input-row">
-              <input type="email" id="gmail-addr-input" placeholder="you@gmail.com"/>
-              <button class="btn btn-outline" onclick="saveGmailAddr()">Save</button>
+
+          <!-- NOT connected -->
+          <div id="gmail-not-connected">
+            <div class="alert alert-warn mb-16">
+              <span>⚠️</span>
+              <span>Gmail not connected. Click below to sign in with Google and grant send permission. This takes 30 seconds.</span>
+            </div>
+            <button class="btn btn-primary" onclick="connectGoogleOAuth()" id="gmail-oauth-btn" style="display:flex;align-items:center;gap:10px;font-size:15px;padding:12px 24px">
+              <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#fff" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/><path fill="#fff" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/><path fill="#fff" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/><path fill="#fff" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z"/></svg>
+              Connect Gmail with Google
+            </button>
+            <div class="api-steps mt-16">
+              <div class="api-steps-title">One-time setup required first (you do this once)</div>
+              <div class="api-step"><div class="api-step-num">1</div><div>Go to <a href="https://console.cloud.google.com" target="_blank">console.cloud.google.com</a> → create a project named <strong>ReachOut</strong></div></div>
+              <div class="api-step"><div class="api-step-num">2</div><div><strong>APIs & Services → Enable APIs</strong> → search & enable <strong>Gmail API</strong></div></div>
+              <div class="api-step"><div class="api-step-num">3</div><div><strong>OAuth consent screen</strong> → External → App name: ReachOut → add your email as test user</div></div>
+              <div class="api-step"><div class="api-step-num">4</div><div><strong>Credentials → Create → OAuth Client ID → Web application</strong> → add redirect URI:<br/><code>https://rwxsxoavfktsinmgexfo.supabase.co/auth/v1/callback</code></div></div>
+              <div class="api-step"><div class="api-step-num">5</div><div>Copy Client ID + Secret → paste into <strong>Supabase → Auth → Sign In / Providers → Google → Enable</strong></div></div>
+              <div class="api-step"><div class="api-step-num">6</div><div>Come back here and click <strong>Connect Gmail with Google</strong> above ↑</div></div>
             </div>
           </div>
-          <div class="alert alert-info mt-8"><span>ℹ️</span><span>For a full production app, implement Gmail OAuth in your Supabase Edge Function. For now, enter your Gmail address and emails will be logged as "sent" — wire up the actual API call in the backend.</span></div>
+
+          <!-- Connected -->
+          <div id="gmail-connected-view" class="hidden">
+            <div class="api-connected-info mb-16">
+              <span style="font-size:20px">✅</span>
+              <div>
+                <div>Connected as <strong id="gmail-email-show"></strong></div>
+                <div style="font-size:12px;color:var(--muted);margin-top:3px">Emails will be sent from this address</div>
+              </div>
+              <button class="btn btn-sm btn-danger" style="margin-left:auto" onclick="disconnectGmail()">Disconnect</button>
+            </div>
+          </div>
         </div>
 
         <!-- Hunter.io -->
@@ -833,9 +856,24 @@ async function initAuth() {
     showPage('page-app');
   }
   sb.auth.onAuthStateChange(async (event, session) => {
-    if (event === 'SIGNED_IN' && session?.user) {
+    if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
       currentUser = session.user;
       await loadUserData();
+
+      // If signed in via Google, auto-save gmail token + email
+      if (session.provider_token && session.user.app_metadata?.provider === 'google') {
+        const gmailEmail = session.user.email;
+        await sb.from('user_api_keys').upsert({
+          user_id: session.user.id,
+          gmail_email: gmailEmail,
+          gmail_access_token: session.provider_token,
+          gmail_refresh_token: session.provider_refresh_token || null,
+          updated_at: new Date().toISOString()
+        });
+        userKeys.gmail_email = gmailEmail;
+        userKeys.gmail_access_token = session.provider_token;
+      }
+
       hideAuth();
       showPage('page-app');
     } else if (event === 'SIGNED_OUT') {
@@ -865,6 +903,18 @@ function showAuthErr(msg) {
   const el = document.getElementById('auth-err');
   el.textContent = msg;
   el.classList.add('show');
+}
+
+async function signInWithGoogle() {
+  const { error } = await sb.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      scopes: 'https://www.googleapis.com/auth/gmail.send',
+      redirectTo: window.location.origin + window.location.pathname,
+      queryParams: { access_type: 'offline', prompt: 'consent' }
+    }
+  });
+  if (error) showAuthErr(error.message);
 }
 
 async function signIn() {
@@ -1241,11 +1291,10 @@ function refreshPreview() {
 }
 
 function loadGmailStatus() {
-  if (userKeys.gmail_email) {
-    document.getElementById('gmail-connected-view').classList.remove('hidden');
-    document.getElementById('gmail-not-connected-view').classList.add('hidden');
-    document.getElementById('gmail-addr').textContent = userKeys.gmail_email;
-  }
+  const connected = !!userKeys.gmail_email;
+  document.getElementById('gmail-connected-view').classList.toggle('hidden', !connected);
+  document.getElementById('gmail-not-connected-view').classList.toggle('hidden', connected);
+  if (connected) document.getElementById('gmail-addr').textContent = userKeys.gmail_email;
 }
 
 // ════════════════════════════════════════════
@@ -1450,32 +1499,47 @@ async function removeResume() {
 // API KEYS
 // ════════════════════════════════════════════
 function loadApiKeyForm() {
-  if (userKeys.gmail_email) {
-    setVal('gmail-addr-input', userKeys.gmail_email);
-    document.getElementById('gmail-connected-info').classList.remove('hidden');
+  const connected = !!userKeys.gmail_email;
+  document.getElementById('gmail-not-connected').classList.toggle('hidden', connected);
+  document.getElementById('gmail-connected-view').classList.toggle('hidden', !connected);
+  if (connected) {
     document.getElementById('gmail-email-show').textContent = userKeys.gmail_email;
     const badge = document.getElementById('gmail-status-badge');
     badge.style.display = 'inline-flex';
-    badge.className = 'api-status api-ok';
     document.getElementById('gmail-status-text').textContent = 'Connected — ' + userKeys.gmail_email;
   }
   if (userKeys.hunter_api_key) document.getElementById('hunter-badge').style.display = 'inline-flex';
   if (userKeys.rapidapi_key) document.getElementById('rapid-badge').style.display = 'inline-flex';
 }
 
-async function saveGmailAddr() {
-  const addr = getVal('gmail-addr-input').trim();
-  if (!addr) return;
-  const { error } = await sb.from('user_api_keys').upsert({ user_id: currentUser.id, gmail_email: addr, updated_at: new Date().toISOString() });
-  if (!error) {
-    userKeys.gmail_email = addr;
-    document.getElementById('gmail-connected-info').classList.remove('hidden');
-    document.getElementById('gmail-email-show').textContent = addr;
-    const badge = document.getElementById('gmail-status-badge');
-    badge.style.display = 'inline-flex'; badge.className = 'api-status api-ok';
-    document.getElementById('gmail-status-text').textContent = 'Connected — ' + addr;
-    alert('Gmail address saved!');
+async function connectGoogleOAuth() {
+  const btn = document.getElementById('gmail-oauth-btn');
+  btn.textContent = 'Connecting…'; btn.disabled = true;
+  const { error } = await sb.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      scopes: 'https://www.googleapis.com/auth/gmail.send',
+      redirectTo: window.location.href,
+      queryParams: { access_type: 'offline', prompt: 'consent' }
+    }
+  });
+  if (error) {
+    btn.innerHTML = '❌ Error: ' + error.message;
+    btn.disabled = false;
   }
+  // On success, browser redirects to Google then back here
+  // onAuthStateChange picks it up and calls loadUserData()
+}
+
+async function disconnectGmail() {
+  await sb.from('user_api_keys').upsert({ user_id: currentUser.id, gmail_email: null, gmail_access_token: null, gmail_refresh_token: null, updated_at: new Date().toISOString() });
+  userKeys.gmail_email = null;
+  userKeys.gmail_access_token = null;
+  loadApiKeyForm();
+}
+
+async function saveGmailAddr() {
+  // kept as fallback — not used in main flow anymore
 }
 
 async function saveApiKey(type) {
