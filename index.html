@@ -1352,7 +1352,7 @@ function srcFilter(btn, src) {
 }
 
 // ════════════════════════════════════════════
-// RECRUITER FINDER
+// RECRUITER FINDER — 6 email patterns per person
 // ════════════════════════════════════════════
 const REC_DB = {
   Stripe:{name:'Sarah Kim',role:'Technical Recruiter',domain:'stripe.com'},
@@ -1365,11 +1365,23 @@ const REC_DB = {
   Ramp:{name:'David Park',role:'Recruiting Coordinator',domain:'ramp.com'},
 };
 
-function guessEmail(name, domain) {
-  const parts = name.toLowerCase().split(' ');
-  const f = parts[0], l = parts[parts.length-1].replace(/'/g,'');
-  const patterns = [`${f}@${domain}`, `${f}.${l}@${domain}`, `${f[0]}${l}@${domain}`];
-  return patterns[Math.floor(Math.random() * patterns.length)];
+// Generate 6 email pattern variations for a name + domain
+function guessAllEmails(name, domain) {
+  const clean = name.toLowerCase().replace(/[^a-z\s]/g, '').trim();
+  const parts = clean.split(/\s+/);
+  const f = parts[0] || 'hiring';
+  const l = parts[parts.length - 1] || 'team';
+  const fi = f[0];
+  const li = l[0];
+  // 6 most common corporate email patterns
+  return [
+    `${f}@${domain}`,           // sarah@stripe.com
+    `${f}.${l}@${domain}`,      // sarah.kim@stripe.com
+    `${fi}${l}@${domain}`,      // skim@stripe.com
+    `${fi}.${l}@${domain}`,     // s.kim@stripe.com
+    `${f}${li}@${domain}`,      // sarahk@stripe.com
+    `${f}_${l}@${domain}`,      // sarah_kim@stripe.com
+  ];
 }
 
 function findRecruiters() {
@@ -1378,7 +1390,10 @@ function findRecruiters() {
   const sel = [...selectedJobs];
   const jobs = allJobs.filter(j => sel.includes(j.id));
 
-  if (!jobs.length) { container.innerHTML = '<div class="alert alert-warn"><span>⚠️</span><span>No jobs selected. Go back to Step 2.</span></div>'; return; }
+  if (!jobs.length) {
+    container.innerHTML = '<div class="alert alert-warn"><span>⚠️</span><span>No jobs selected. Go back to Step 2.</span></div>';
+    return;
+  }
 
   btn.textContent = '⏳ Finding…'; btn.disabled = true;
   container.innerHTML = '';
@@ -1386,29 +1401,50 @@ function findRecruiters() {
   jobs.forEach((job, i) => {
     setTimeout(() => {
       const data = REC_DB[job.company];
-      const rec = data ? {
-        name: data.name, role: data.role,
-        email: guessEmail(data.name, data.domain),
-        conf: ['High','Medium','Medium','Low'][Math.floor(Math.random()*4)]
-      } : {
-        name: 'Hiring Team', role: 'Recruiter',
-        email: `recruiting@${job.company.toLowerCase().replace(/\s/g,'')}.com`, conf: 'Low'
+      const name = data?.name || 'Hiring Team';
+      const role = data?.role || 'Recruiter';
+      const domain = data?.domain || `${job.company.toLowerCase().replace(/\s/g,'')}.com`;
+      const emails = guessAllEmails(name, domain);
+
+      recruiters[job.id] = {
+        name, role,
+        email: emails[0],   // primary email used for sending
+        emails,             // all 6 patterns
+        conf: data ? 'High' : 'Low'
       };
-      recruiters[job.id] = rec;
+
+      const initials = name.split(' ').map(n => n[0]).join('').toUpperCase();
+      const confClass = data ? 'conf-h' : 'conf-l';
+      const confLabel = data ? 'High' : 'Low';
 
       container.innerHTML += `
-        <div class="rec-badge">
-          <div class="rec-av">${rec.name.split(' ').map(n=>n[0]).join('')}</div>
-          <div class="rec-i">
-            <div class="rec-name">${rec.name} <span style="color:var(--muted)">@ ${job.company}</span></div>
-            <div class="rec-role">${rec.role}</div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px 18px;margin-bottom:12px">
+          <div class="rec-badge" style="background:none;border:none;padding:0;margin-bottom:12px">
+            <div class="rec-av">${initials}</div>
+            <div class="rec-i">
+              <div class="rec-name">${name} <span style="color:var(--muted)">@ ${job.company}</span></div>
+              <div class="rec-role">${role} · ${job.title}</div>
+            </div>
+            <span class="conf ${confClass}">${confLabel} confidence</span>
           </div>
-          <span class="rec-email">${rec.email}</span>
-          <span class="conf ${rec.conf==='High'?'conf-h':rec.conf==='Medium'?'conf-m':'conf-l'}">${rec.conf}</span>
+          <div style="font-size:11px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">6 email patterns — all will be tried:</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            ${emails.map((em, idx) => `
+              <span style="font-size:12px;font-family:monospace;padding:3px 10px;border-radius:100px;
+                background:${idx===0?'rgba(110,231,183,.12)':'var(--surface2)'};
+                border:1px solid ${idx===0?'rgba(110,231,183,.25)':'var(--border2)'};
+                color:${idx===0?'var(--green)':'var(--muted2)'}">
+                ${idx===0?'★ ':''}${em}
+              </span>`).join('')}
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:8px">★ Primary address · others sent as CC to maximise deliverability</div>
         </div>`;
 
-      if (i === jobs.length - 1) { btn.textContent = `✓ Found ${jobs.length}`; btn.disabled = false; }
-    }, i * 380);
+      if (i === jobs.length - 1) {
+        btn.textContent = `✓ Found patterns for ${jobs.length} recruiter${jobs.length>1?'s':''}`;
+        btn.disabled = false;
+      }
+    }, i * 400);
   });
 }
 
@@ -1568,20 +1604,16 @@ async function startSend() {
 
   console.log('Auth token obtained:', authToken ? 'YES' : 'NO');
 
-  // Load resume from Supabase storage if available
-  if (userProfile.resume_url && !resumeBase64) {
-    try {
-      const { data: resumeData } = await sb.storage.from('resumes').download(userProfile.resume_url);
-      if (resumeData) {
-        const arrayBuffer = await resumeData.arrayBuffer();
-        const uint8 = new Uint8Array(arrayBuffer);
-        let binary = '';
-        for (let i = 0; i < uint8.length; i++) binary += String.fromCharCode(uint8[i]);
-        resumeBase64 = btoa(binary);
-        console.log('Resume loaded, size:', resumeBase64.length);
-      }
-    } catch(e) {
-      console.log('Could not load resume:', e.message);
+  // Load resume from browser localStorage (never stored in Supabase)
+  if (!resumeBase64) {
+    const stored = localStorage.getItem('reachout_resume_b64');
+    const storedName = localStorage.getItem('reachout_resume_name');
+    if (stored) {
+      resumeBase64 = stored;
+      if (storedName && !userProfile.resume_name) userProfile.resume_name = storedName;
+      console.log('Resume loaded from browser storage:', storedName);
+    } else {
+      console.log('No resume found in browser storage — emails will send without attachment');
     }
   }
 
@@ -1605,8 +1637,13 @@ async function startSend() {
   }
 
   async function sendOneEmail(job) {
-    const rec = recruiters[job.id] || { email: `recruiting@${job.company.toLowerCase().replace(/\s/g,'')}.com`, name: 'Hiring Manager', conf: 'Low' };
+    const rec = recruiters[job.id] || {
+      email: `recruiting@${job.company.toLowerCase().replace(/\s/g,'')}.com`,
+      emails: [`recruiting@${job.company.toLowerCase().replace(/\s/g,'')}.com`],
+      name: 'Hiring Manager', conf: 'Low'
+    };
     const { subject, body } = buildEmail(job);
+    const allEmails = rec.emails || [rec.email];
 
     // Save outreach record
     let jobRecord = null;
@@ -1615,14 +1652,14 @@ async function startSend() {
         campaign_id: campaign.id, user_id: currentUser.id,
         job_title: job.title, company: job.company,
         location: job.location, source: job.source,
-        recruiter_name: rec.name, recruiter_email: rec.email,
+        recruiter_name: rec.name, recruiter_email: allEmails.join(', '),
         recruiter_confidence: rec.conf,
         email_subject: subject, status: 'pending'
       }).select().single();
       jobRecord = data;
     }
 
-    // Call Edge Function with provider + resume
+    // Call Edge Function — pass all 6 email patterns
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 20000);
     let res;
@@ -1631,12 +1668,10 @@ async function startSend() {
         'https://rwxsxoavfktsinmgexfo.supabase.co/functions/v1/send-email',
         {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${authToken}`,
-            'Content-Type': 'application/json'
-          },
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            to: rec.email,
+            to: allEmails[0],           // primary To
+            cc: allEmails.slice(1),     // remaining 5 as CC
             subject,
             body,
             job_id: jobRecord?.id,
@@ -1647,9 +1682,7 @@ async function startSend() {
           signal: controller.signal
         }
       );
-    } finally {
-      clearTimeout(timeout);
-    }
+    } finally { clearTimeout(timeout); }
 
     if (!res.ok && res.status !== 400) throw new Error(`Server error ${res.status}`);
     const result = await res.json();
@@ -1744,7 +1777,12 @@ function loadProfileForm() {
     skillsWrap.insertBefore(t, skillsInput);
   });
 
-  if (userProfile.resume_name) {
+  // Check localStorage for resume
+  const storedResumeName = localStorage.getItem('reachout_resume_name');
+  if (storedResumeName) {
+    document.getElementById('pf-resume-name-show').textContent = storedResumeName;
+    document.getElementById('pf-resume-existing').classList.remove('hidden');
+  } else if (userProfile.resume_name) {
     document.getElementById('pf-resume-name-show').textContent = userProfile.resume_name;
     document.getElementById('pf-resume-existing').classList.remove('hidden');
   }
@@ -1763,13 +1801,29 @@ async function saveProfile() {
     updated_at: new Date().toISOString()
   };
 
-  // Upload resume if selected
+  // Store resume in localStorage (never touches Supabase)
   const resumeInput = document.getElementById('pf-resume-drop').querySelector('input');
   if (resumeInput.files[0]) {
     const file = resumeInput.files[0];
-    const path = `${currentUser.id}/${Date.now()}_${file.name}`;
-    const { error: upErr } = await sb.storage.from('resumes').upload(path, file);
-    if (!upErr) { updates.resume_url = path; updates.resume_name = file.name; }
+    if (file.size > 4 * 1024 * 1024) {
+      alert('Resume must be under 4MB for browser storage.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const base64 = e.target.result.split(',')[1];
+      try {
+        localStorage.setItem('reachout_resume_b64', base64);
+        localStorage.setItem('reachout_resume_name', file.name);
+        resumeBase64 = base64;
+        console.log('Resume saved to browser storage');
+      } catch(err) {
+        alert('Browser storage full — try a smaller resume file.');
+      }
+    };
+    reader.readAsDataURL(file);
+    updates.resume_name = file.name;
+    updates.resume_url = null; // not using Supabase storage
   }
 
   const { error } = await sb.from('profiles').upsert({ id: currentUser.id, ...updates });
@@ -1781,7 +1835,9 @@ async function saveProfile() {
 }
 
 async function removeResume() {
-  if (userProfile.resume_url) await sb.storage.from('resumes').remove([userProfile.resume_url]);
+  localStorage.removeItem('reachout_resume_b64');
+  localStorage.removeItem('reachout_resume_name');
+  resumeBase64 = null;
   await sb.from('profiles').update({ resume_url: null, resume_name: null }).eq('id', currentUser.id);
   userProfile.resume_url = null; userProfile.resume_name = null;
   document.getElementById('pf-resume-existing').classList.add('hidden');
