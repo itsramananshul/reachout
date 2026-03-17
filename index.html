@@ -541,18 +541,37 @@ code{font-family:monospace;font-size:12px;background:var(--surface3);padding:2px
 
         <!-- Step 3: Email Setup -->
         <div id="cs-3" class="hidden">
-          <!-- Gmail status -->
-          <div class="card mb-24" id="gmail-card">
-            <div class="card-title">Gmail Connection</div>
-            <div class="card-sub">Your emails are sent from your own Gmail for maximum trust and deliverability.</div>
-            <div id="gmail-connected-view" class="hidden">
-              <div class="api-connected-info">
-                <span style="font-size:20px">✅</span>
-                <div>Connected as <strong id="gmail-addr"></strong> — emails will be sent from this address.</div>
+          <!-- Email provider card -->
+          <div class="card mb-24">
+            <div class="card-title">Email Provider</div>
+            <div class="card-sub">Choose which email account to send from.</div>
+            <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+              <button class="btn btn-outline" id="sel-gmail" onclick="selectProvider('gmail')" style="flex:1;justify-content:center;gap:8px;padding:12px">
+                <svg width="16" height="16" viewBox="0 0 18 18"><path fill="#818cf8" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/><path fill="#6ee7b7" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/></svg>
+                Gmail
+              </button>
+              <button class="btn btn-ghost" id="sel-outlook" onclick="selectProvider('outlook')" style="flex:1;justify-content:center;gap:8px;padding:12px">
+                <svg width="16" height="16" viewBox="0 0 23 23"><path fill="#0078d4" d="M11 11H0V0h11zm12 0H12V0h11zM11 23H0V12h11zm12 0H12V12h11z"/></svg>
+                Outlook / Work Email
+              </button>
+            </div>
+            <!-- Gmail status -->
+            <div id="gmail-provider-status">
+              <div id="gmail-connected-view" class="hidden">
+                <div class="api-connected-info"><span>✅</span><div>Gmail connected as <strong id="gmail-addr"></strong></div></div>
+              </div>
+              <div id="gmail-not-connected-view">
+                <div class="alert alert-warn"><span>⚠️</span><span>Gmail not connected. Go to <a style="color:var(--accent);cursor:pointer" onclick="showSection('apikeys')">API Keys</a> first.</span></div>
               </div>
             </div>
-            <div id="gmail-not-connected-view">
-              <div class="alert alert-warn mb-16"><span>⚠️</span><span>Gmail not connected yet. Go to <a style="color:var(--accent);cursor:pointer" onclick="showSection('apikeys')">API Keys</a> to connect it first.</span></div>
+            <!-- Outlook status -->
+            <div id="outlook-provider-status" class="hidden">
+              <div id="outlook-connected-view-step" class="hidden">
+                <div class="api-connected-info"><span>✅</span><div>Outlook connected as <strong id="outlook-addr-step"></strong></div></div>
+              </div>
+              <div id="outlook-not-connected-view">
+                <div class="alert alert-warn"><span>⚠️</span><span>Outlook not connected. Go to <a style="color:var(--accent);cursor:pointer" onclick="showSection('apikeys')">API Keys</a> first.</span></div>
+              </div>
             </div>
           </div>
 
@@ -773,6 +792,55 @@ code{font-family:monospace;font-size:12px;background:var(--surface3);padding:2px
           </div>
         </div>
 
+        <!-- Outlook -->
+        <div class="api-card">
+          <div class="api-header">
+            <div class="api-logo" style="background:#0078d4">📨</div>
+            <div class="api-info">
+              <div class="api-name">Outlook / Work Email <span style="color:var(--muted);font-size:13px">Optional</span></div>
+              <div class="api-desc">Send from your work or school email via Outlook. Uses Microsoft OAuth — we only request Send permission.</div>
+              <div class="api-status api-ok" id="outlook-status-badge" style="display:none">● <span id="outlook-status-text">Connected</span></div>
+            </div>
+          </div>
+
+          <!-- Not connected -->
+          <div id="outlook-not-connected">
+            <div class="alert alert-info mb-16">
+              <span>ℹ️</span>
+              <span>Connect your work Outlook/Microsoft email to send from it instead of Gmail.</span>
+            </div>
+            <button class="btn btn-primary" onclick="connectOutlookOAuth()" id="outlook-oauth-btn" style="display:flex;align-items:center;gap:10px;font-size:15px;padding:12px 24px;background:#0078d4">
+              <svg width="18" height="18" viewBox="0 0 23 23"><path fill="#fff" d="M11 11H0V0h11zm12 0H12V0h11zM11 23H0V12h11zm12 0H12V12h11z"/></svg>
+              Connect Outlook with Microsoft
+            </button>
+            <div class="api-steps mt-16">
+              <div class="api-steps-title">One-time setup (you do this once)</div>
+              <div class="api-step"><div class="api-step-num">1</div><div>Go to <a href="https://portal.azure.com" target="_blank">portal.azure.com</a> → sign in with your Microsoft account</div></div>
+              <div class="api-step"><div class="api-step-num">2</div><div><strong>Azure Active Directory → App registrations → New registration</strong> → name: ReachOut</div></div>
+              <div class="api-step"><div class="api-step-num">3</div><div>Set redirect URI to: <code>https://rwxsxoavfktsinmgexfo.supabase.co/auth/v1/callback</code></div></div>
+              <div class="api-step"><div class="api-step-num">4</div><div><strong>API permissions → Add → Microsoft Graph → Mail.Send</strong></div></div>
+              <div class="api-step"><div class="api-step-num">5</div><div><strong>Certificates & secrets → New client secret</strong> → copy the Value</div></div>
+              <div class="api-step"><div class="api-step-num">6</div><div>Go to <strong>Supabase → Auth → Sign In / Providers → Azure</strong> → paste Client ID + Secret → enable</div></div>
+              <div class="api-step"><div class="api-step-num">7</div><div>Come back and click <strong>Connect Outlook</strong> above ↑</div></div>
+            </div>
+          </div>
+
+          <!-- Connected -->
+          <div id="outlook-connected-view" class="hidden">
+            <div class="api-connected-info mb-16">
+              <span style="font-size:20px">✅</span>
+              <div>
+                <div>Connected as <strong id="outlook-email-show"></strong></div>
+                <div style="font-size:12px;color:var(--muted);margin-top:3px">Emails will be sent from this address</div>
+              </div>
+              <div style="margin-left:auto;display:flex;gap:8px">
+                <button class="btn btn-sm btn-outline" onclick="connectOutlookOAuth()">↻ Reconnect</button>
+                <button class="btn btn-sm btn-danger" onclick="disconnectOutlook()">Disconnect</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Hunter.io -->
         <div class="api-card">
           <div class="api-header">
@@ -847,6 +915,8 @@ let jobFilter = 'all';
 let recruiters = {};
 let campaignStep = 1;
 let campaigns = [];
+let selectedProvider = 'gmail'; // 'gmail' or 'outlook'
+let resumeBase64 = null; // stored resume for attaching
 
 // ════════════════════════════════════════════
 // AUTH
@@ -891,16 +961,87 @@ async function initAuth() {
 }
 
 async function saveGoogleToken(session) {
-  const gmailEmail = session.user.email;
+  const provider = session.user.app_metadata?.provider;
+  if (provider === 'google') {
+    const gmailEmail = session.user.email;
+    await sb.from('user_api_keys').upsert({
+      user_id: session.user.id,
+      gmail_email: gmailEmail,
+      gmail_access_token: session.provider_token,
+      gmail_refresh_token: session.provider_refresh_token || null,
+      updated_at: new Date().toISOString()
+    });
+    userKeys.gmail_email = gmailEmail;
+    userKeys.gmail_access_token = session.provider_token;
+  } else if (provider === 'azure') {
+    const outlookEmail = session.user.email;
+    await sb.from('user_api_keys').upsert({
+      user_id: session.user.id,
+      outlook_email: outlookEmail,
+      outlook_access_token: session.provider_token,
+      outlook_refresh_token: session.provider_refresh_token || null,
+      updated_at: new Date().toISOString()
+    });
+    userKeys.outlook_email = outlookEmail;
+    userKeys.outlook_access_token = session.provider_token;
+  }
+}
+
+async function connectGoogleOAuth() {
+  const btn = document.getElementById('gmail-oauth-btn');
+  if (btn) { btn.textContent = 'Connecting…'; btn.disabled = true; }
+  const { error } = await sb.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      scopes: 'https://www.googleapis.com/auth/gmail.send',
+      redirectTo: window.location.origin + window.location.pathname,
+      queryParams: { access_type: 'offline', prompt: 'consent' }
+    }
+  });
+  if (error) { alert('Error: ' + error.message); if (btn) { btn.textContent = 'Connect Gmail with Google'; btn.disabled = false; } }
+}
+
+async function connectOutlookOAuth() {
+  const btn = document.getElementById('outlook-oauth-btn');
+  if (btn) { btn.textContent = 'Connecting…'; btn.disabled = true; }
+  const { error } = await sb.auth.signInWithOAuth({
+    provider: 'azure',
+    options: {
+      scopes: 'offline_access Mail.Send User.Read',
+      redirectTo: window.location.origin + window.location.pathname,
+    }
+  });
+  if (error) { alert('Error: ' + error.message); if (btn) { btn.textContent = 'Connect Outlook with Microsoft'; btn.disabled = false; } }
+}
+
+async function disconnectOutlook() {
   await sb.from('user_api_keys').upsert({
-    user_id: session.user.id,
-    gmail_email: gmailEmail,
-    gmail_access_token: session.provider_token,
-    gmail_refresh_token: session.provider_refresh_token || null,
+    user_id: currentUser.id,
+    outlook_email: null, outlook_access_token: null, outlook_refresh_token: null,
     updated_at: new Date().toISOString()
   });
-  userKeys.gmail_email = gmailEmail;
-  userKeys.gmail_access_token = session.provider_token;
+  userKeys.outlook_email = null; userKeys.outlook_access_token = null;
+  loadApiKeyForm();
+}
+
+function selectProvider(provider) {
+  selectedProvider = provider;
+  const gmailBtn = document.getElementById('sel-gmail');
+  const outlookBtn = document.getElementById('sel-outlook');
+  const gmailStatus = document.getElementById('gmail-provider-status');
+  const outlookStatus = document.getElementById('outlook-provider-status');
+
+  if (provider === 'gmail') {
+    gmailBtn?.classList.replace('btn-ghost', 'btn-outline');
+    outlookBtn?.classList.replace('btn-outline', 'btn-ghost');
+    gmailStatus?.classList.remove('hidden');
+    outlookStatus?.classList.add('hidden');
+  } else {
+    outlookBtn?.classList.replace('btn-ghost', 'btn-outline');
+    gmailBtn?.classList.replace('btn-outline', 'btn-ghost');
+    outlookStatus?.classList.remove('hidden');
+    gmailStatus?.classList.add('hidden');
+  }
 }
 
 function showAuth(tab) {
@@ -1311,10 +1452,27 @@ function refreshPreview() {
 }
 
 function loadGmailStatus() {
-  const connected = !!userKeys.gmail_email;
-  document.getElementById('gmail-connected-view').classList.toggle('hidden', !connected);
-  document.getElementById('gmail-not-connected-view').classList.toggle('hidden', connected);
-  if (connected) document.getElementById('gmail-addr').textContent = userKeys.gmail_email;
+  const gmailConnected = !!userKeys.gmail_email;
+  const outlookConnected = !!userKeys.outlook_email;
+
+  // Default to Gmail if connected, else Outlook
+  if (!gmailConnected && outlookConnected) selectProvider('outlook');
+  else selectProvider('gmail');
+
+  // Gmail status
+  document.getElementById('gmail-connected-view').classList.toggle('hidden', !gmailConnected);
+  document.getElementById('gmail-not-connected-view').classList.toggle('hidden', gmailConnected);
+  if (gmailConnected) document.getElementById('gmail-addr').textContent = userKeys.gmail_email;
+
+  // Outlook status
+  const outlookStep = document.getElementById('outlook-connected-view-step');
+  const outlookNotStep = document.getElementById('outlook-not-connected-view');
+  if (outlookStep) outlookStep.classList.toggle('hidden', !outlookConnected);
+  if (outlookNotStep) outlookNotStep.classList.toggle('hidden', outlookConnected);
+  if (outlookConnected) {
+    const el = document.getElementById('outlook-addr-step');
+    if (el) el.textContent = userKeys.outlook_email;
+  }
 }
 
 // ════════════════════════════════════════════
@@ -1410,6 +1568,23 @@ async function startSend() {
 
   console.log('Auth token obtained:', authToken ? 'YES' : 'NO');
 
+  // Load resume from Supabase storage if available
+  if (userProfile.resume_url && !resumeBase64) {
+    try {
+      const { data: resumeData } = await sb.storage.from('resumes').download(userProfile.resume_url);
+      if (resumeData) {
+        const arrayBuffer = await resumeData.arrayBuffer();
+        const uint8 = new Uint8Array(arrayBuffer);
+        let binary = '';
+        for (let i = 0; i < uint8.length; i++) binary += String.fromCharCode(uint8[i]);
+        resumeBase64 = btoa(binary);
+        console.log('Resume loaded, size:', resumeBase64.length);
+      }
+    } catch(e) {
+      console.log('Could not load resume:', e.message);
+    }
+  }
+
   // Build personalised email for a job
   function buildEmail(job) {
     const fn = getVal('cp-fn') || userProfile.full_name?.split(' ')[0] || '';
@@ -1447,9 +1622,9 @@ async function startSend() {
       jobRecord = data;
     }
 
-    // Call Edge Function with timeout
+    // Call Edge Function with provider + resume
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
+    const timeout = setTimeout(() => controller.abort(), 20000);
     let res;
     try {
       res = await fetch(
@@ -1460,7 +1635,15 @@ async function startSend() {
             'Authorization': `Bearer ${authToken}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ to: rec.email, subject, body, job_id: jobRecord?.id }),
+          body: JSON.stringify({
+            to: rec.email,
+            subject,
+            body,
+            job_id: jobRecord?.id,
+            provider: selectedProvider,
+            resume_base64: resumeBase64,
+            resume_name: userProfile.resume_name || 'resume.pdf'
+          }),
           signal: controller.signal
         }
       );
@@ -1468,10 +1651,7 @@ async function startSend() {
       clearTimeout(timeout);
     }
 
-    if (!res.ok && res.status !== 400) {
-      throw new Error(`Server error ${res.status} — is the Edge Function deployed?`);
-    }
-
+    if (!res.ok && res.status !== 400) throw new Error(`Server error ${res.status}`);
     const result = await res.json();
     if (!result.success) throw new Error(result.error || 'Send failed');
     return true;
@@ -1523,115 +1703,6 @@ async function startSend() {
   document.getElementById('done-fail').textContent = failed;
   document.getElementById('done-cos').textContent = new Set(jobs.map(j => j.company)).size;
   renderDashboard();
-
-  // Build personalised email for a job
-  function buildEmail(job) {
-    const fn = getVal('cp-fn') || userProfile.full_name?.split(' ')[0] || '';
-    const ln = getVal('cp-ln') || userProfile.full_name?.split(' ').slice(1).join(' ') || '';
-    const title = getVal('cp-title') || userProfile.title || '';
-    const skills = getTags('cp-skills').slice(0,3).join(', ') || (userProfile.skills||[]).slice(0,3).join(', ');
-    const rec = recruiters[job.id] || { name: 'Hiring Manager' };
-    const vars = {
-      '{{recruiter_name}}': rec.name.split(' ')[0],
-      '{{company_name}}': job.company,
-      '{{job_title}}': job.title,
-      '{{your_name}}': `${fn} ${ln}`.trim(),
-      '{{your_title}}': title,
-      '{{your_skills}}': skills,
-    };
-    const r = s => Object.entries(vars).reduce((a,[k,v]) => a.replaceAll(k,v), s);
-    return {
-      subject: r(getVal('tpl-subject') || ''),
-      body: r(getVal('tpl-body') || '')
-    };
-  }
-
-  async function sendOneEmail(job) {
-    const rec = recruiters[job.id] || { email: `recruiting@${job.company.toLowerCase().replace(/\s/g,'')}.com`, name: 'Hiring Manager', conf: 'Low' };
-    const { subject, body } = buildEmail(job);
-
-    // Save outreach record first
-    let jobRecord = null;
-    if (campaign) {
-      const { data } = await sb.from('outreach_jobs').insert({
-        campaign_id: campaign.id, user_id: currentUser.id,
-        job_title: job.title, company: job.company,
-        location: job.location, source: job.source,
-        recruiter_name: rec.name, recruiter_email: rec.email,
-        recruiter_confidence: rec.conf,
-        email_subject: subject, status: 'pending'
-      }).select().single();
-      jobRecord = data;
-    }
-
-    // Call Supabase Edge Function to send real email
-    const res = await fetch(
-      'https://rwxsxoavfktsinmgexfo.supabase.co/functions/v1/send-email',
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          to: rec.email,
-          subject,
-          body,
-          job_id: jobRecord?.id
-        })
-      }
-    );
-
-    const result = await res.json();
-    return { ok: result.success, error: result.error };
-  }
-
-  async function sendNext() {
-    if (i >= jobs.length) {
-      if (campaign) {
-        await sb.from('campaigns').update({
-          status: 'sent', sent, failed,
-          sent_at: new Date().toISOString()
-        }).eq('id', campaign.id);
-        campaigns.unshift({ ...campaign, status: 'sent', sent, failed });
-      }
-      document.getElementById('in-send').classList.add('hidden');
-      document.getElementById('done-view').classList.remove('hidden');
-      document.getElementById('done-sent').textContent = sent;
-      document.getElementById('done-fail').textContent = failed;
-      document.getElementById('done-cos').textContent = new Set(jobs.map(j => j.company)).size;
-      renderDashboard();
-      return;
-    }
-
-    const job = jobs[i];
-    const qs = document.getElementById('lqs-' + job.id);
-    const qm = document.getElementById('lqm-' + job.id);
-    qs.className = 'qs qs-go'; qs.textContent = '↻'; qm.textContent = 'Sending…';
-
-    try {
-      const { ok, error } = await sendOneEmail(job);
-      if (ok) {
-        sent++;
-        qs.className = 'qs qs-ok'; qs.textContent = '✓'; qs.style.animation = 'none';
-        qm.textContent = 'Sent ✓'; qm.style.color = 'var(--green)';
-      } else {
-        throw new Error(error || 'Unknown error');
-      }
-    } catch(err) {
-      failed++;
-      qs.className = 'qs qs-fail'; qs.textContent = '✗'; qs.style.animation = 'none';
-      qm.textContent = 'Failed: ' + (err.message || 'Send error'); qm.style.color = 'var(--red)';
-    }
-
-    document.getElementById('send-p').textContent =
-      `${i+1} of ${jobs.length} processed (${Math.round((i+1)/jobs.length*100)}%)`;
-    i++;
-    // Small delay between sends to avoid Gmail rate limits
-    setTimeout(sendNext, 500);
-  }
-
-  sendNext();
 }
 
 function refreshedSubject(job) {
@@ -1720,48 +1791,38 @@ async function removeResume() {
 // API KEYS
 // ════════════════════════════════════════════
 function loadApiKeyForm() {
-  const connected = !!userKeys.gmail_email;
-  document.getElementById('gmail-not-connected').classList.toggle('hidden', connected);
-  document.getElementById('gmail-connected-view').classList.toggle('hidden', !connected);
-  if (connected) {
+  // Gmail
+  const gmailConnected = !!userKeys.gmail_email;
+  document.getElementById('gmail-not-connected').classList.toggle('hidden', gmailConnected);
+  document.getElementById('gmail-connected-view').classList.toggle('hidden', !gmailConnected);
+  if (gmailConnected) {
     document.getElementById('gmail-email-show').textContent = userKeys.gmail_email;
     const badge = document.getElementById('gmail-status-badge');
-    badge.style.display = 'inline-flex';
-    document.getElementById('gmail-status-text').textContent = 'Connected — ' + userKeys.gmail_email;
+    if (badge) { badge.style.display = 'inline-flex'; document.getElementById('gmail-status-text').textContent = 'Connected — ' + userKeys.gmail_email; }
+  }
+  // Outlook
+  const outlookConnected = !!userKeys.outlook_email;
+  const outlookNotConn = document.getElementById('outlook-not-connected');
+  const outlookConn = document.getElementById('outlook-connected-view');
+  if (outlookNotConn) outlookNotConn.classList.toggle('hidden', outlookConnected);
+  if (outlookConn) outlookConn.classList.toggle('hidden', !outlookConnected);
+  if (outlookConnected) {
+    const el = document.getElementById('outlook-email-show');
+    if (el) el.textContent = userKeys.outlook_email;
+    const badge = document.getElementById('outlook-status-badge');
+    if (badge) { badge.style.display = 'inline-flex'; document.getElementById('outlook-status-text').textContent = 'Connected — ' + userKeys.outlook_email; }
   }
   if (userKeys.hunter_api_key) document.getElementById('hunter-badge').style.display = 'inline-flex';
   if (userKeys.rapidapi_key) document.getElementById('rapid-badge').style.display = 'inline-flex';
 }
 
-async function connectGoogleOAuth() {
-  const btn = document.getElementById('gmail-oauth-btn');
-  btn.textContent = 'Connecting…'; btn.disabled = true;
-  const { error } = await sb.auth.signInWithOAuth({
-    provider: 'google',
-    options: {
-      scopes: 'https://www.googleapis.com/auth/gmail.send',
-      redirectTo: window.location.href,
-      queryParams: { access_type: 'offline', prompt: 'consent' }
-    }
-  });
-  if (error) {
-    btn.innerHTML = '❌ Error: ' + error.message;
-    btn.disabled = false;
-  }
-  // On success, browser redirects to Google then back here
-  // onAuthStateChange picks it up and calls loadUserData()
-}
-
 async function disconnectGmail() {
   await sb.from('user_api_keys').upsert({ user_id: currentUser.id, gmail_email: null, gmail_access_token: null, gmail_refresh_token: null, updated_at: new Date().toISOString() });
-  userKeys.gmail_email = null;
-  userKeys.gmail_access_token = null;
+  userKeys.gmail_email = null; userKeys.gmail_access_token = null;
   loadApiKeyForm();
 }
 
-async function saveGmailAddr() {
-  // kept as fallback — not used in main flow anymore
-}
+async function saveGmailAddr() { /* legacy fallback */ }
 
 async function saveApiKey(type) {
   const keyMap = { hunter: 'hunter-key', rapidapi: 'rapid-key' };
