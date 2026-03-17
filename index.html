@@ -1381,14 +1381,34 @@ async function startSend() {
     status: 'sending'
   }).select().single();
 
-  // Get current session for auth token
-  const { data: { session } } = await sb.auth.getSession();
-  const authToken = session?.access_token;
+  // Get auth token — try multiple methods
+  let authToken = null;
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    authToken = session?.access_token;
+  } catch(e) {}
+
+  // Fallback: try getting from current user
+  if (!authToken) {
+    try {
+      const { data: { user } } = await sb.auth.getUser();
+      if (user) {
+        // Force refresh session
+        const { data } = await sb.auth.refreshSession();
+        authToken = data?.session?.access_token;
+      }
+    } catch(e) {}
+  }
 
   if (!authToken) {
-    document.getElementById('send-p').textContent = 'Error: Not logged in. Please refresh and try again.';
+    document.getElementById('in-send').classList.add('hidden');
+    document.getElementById('pre-send').classList.remove('hidden');
+    document.getElementById('campaign-bottom-nav').classList.remove('hidden');
+    alert('Session expired. Please sign out and sign back in with Google, then try again.');
     return;
   }
+
+  console.log('Auth token obtained:', authToken ? 'YES' : 'NO');
 
   // Build personalised email for a job
   function buildEmail(job) {
