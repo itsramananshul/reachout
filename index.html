@@ -765,7 +765,10 @@ code{font-family:monospace;font-size:12px;background:var(--surface3);padding:2px
                 <div>Connected as <strong id="gmail-email-show"></strong></div>
                 <div style="font-size:12px;color:var(--muted);margin-top:3px">Emails will be sent from this address</div>
               </div>
-              <button class="btn btn-sm btn-danger" style="margin-left:auto" onclick="disconnectGmail()">Disconnect</button>
+              <div style="margin-left:auto;display:flex;gap:8px">
+                <button class="btn btn-sm btn-outline" onclick="connectGoogleOAuth()">↻ Reconnect</button>
+                <button class="btn btn-sm btn-danger" onclick="disconnectGmail()">Disconnect</button>
+              </div>
             </div>
           </div>
         </div>
@@ -1424,18 +1427,26 @@ async function startSend() {
       jobRecord = data;
     }
 
-    // Call Edge Function
-    const res = await fetch(
-      'https://rwxsxoavfktsinmgexfo.supabase.co/functions/v1/send-email',
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ to: rec.email, subject, body, job_id: jobRecord?.id })
-      }
-    );
+    // Call Edge Function with timeout
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    let res;
+    try {
+      res = await fetch(
+        'https://rwxsxoavfktsinmgexfo.supabase.co/functions/v1/send-email',
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ to: rec.email, subject, body, job_id: jobRecord?.id }),
+          signal: controller.signal
+        }
+      );
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (!res.ok && res.status !== 400) {
       throw new Error(`Server error ${res.status} — is the Edge Function deployed?`);
@@ -1796,4 +1807,3 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
-
