@@ -57,7 +57,7 @@ Vanilla JS · Supabase · Gmail API · Microsoft Graph API · Google OAuth · Mi
 
 Questions or feedback? Reach out directly.
 
-📧 mailto:akanshulram20062008@gmail.com
+📧 mailto:ar.dev@anshulraman.com
 🔗 https://linkedin.com/in/anshulraman06
 
 ---
