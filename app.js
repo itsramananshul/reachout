@@ -36,39 +36,43 @@ async function initAuth() {
     window.history.replaceState({}, document.title, window.location.pathname);
   }
 
-  if (window.location.hash.includes('access_token') ||
-      window.location.search.includes('code=')) {
-    try {
-      await sb.auth.exchangeCodeForSession(window.location.href);
-    } catch(e) { showAuth('signin'); showAuthErr('Sign-in failed: ' + (e?.message || e)); }
-  }
-
-  const { data: { session } } = await sb.auth.getSession();
-  if (session?.user) {
+  let _entered = false;
+  async function enterApp(session) {
+    if (_entered || !session?.user) return;
+    _entered = true;
     currentUser = session.user;
     await loadUserData();
     if (session.provider_token && session.user.app_metadata?.provider === 'google') {
       await saveGoogleToken(session);
     }
     window.history.replaceState({}, document.title, window.location.pathname);
+    hideAuth();
     showPage('page-app');
   }
 
+  // Register FIRST so we never miss the session Supabase restores from the
+  // return URL (it fires INITIAL_SESSION / SIGNED_IN). React to ANY event that
+  // carries a user — the old code only handled SIGNED_IN, so OIDC logins that
+  // came back as INITIAL_SESSION left you stuck on the landing page.
   sb.auth.onAuthStateChange(async (event, session) => {
-    if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
-      currentUser = session.user;
-      await loadUserData();
-      if (session.provider_token && session.user.app_metadata?.provider === 'google') {
-        await saveGoogleToken(session);
-      }
-      hideAuth();
-      showPage('page-app');
-    } else if (event === 'SIGNED_OUT') {
-      currentUser = null;
+    if (event === 'SIGNED_OUT') {
+      _entered = false; currentUser = null;
       userProfile = {}; userKeys = {}; campaigns = [];
       showPage('page-landing');
+      return;
     }
+    if (session?.user) await enterApp(session);
   });
+
+  // Explicitly finish a PKCE code exchange if it's still in the URL (covers the
+  // race with detectSessionInUrl). If it was already consumed, getSession covers it.
+  if (window.location.hash.includes('access_token') ||
+      window.location.search.includes('code=')) {
+    try { await sb.auth.exchangeCodeForSession(window.location.href); } catch(e) {}
+  }
+
+  const { data: { session } } = await sb.auth.getSession();
+  if (session?.user) await enterApp(session);
 }
 
 async function saveGoogleToken(session) {
