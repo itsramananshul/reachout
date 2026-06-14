@@ -23,11 +23,24 @@ let resumeBase64 = null;
 // AUTH
 // ════════════════════════════════════════════
 async function initAuth() {
+  // Surface OAuth/callback errors returned in the URL (otherwise a failed
+  // ATLAS/Supabase round-trip silently dumps you back on the landing page).
+  const _hp = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  const _qp = new URLSearchParams(window.location.search);
+  const _oerr = _hp.get('error_description') || _hp.get('error') ||
+                _qp.get('error_description') || _qp.get('error');
+  if (_oerr) {
+    const msg = decodeURIComponent(_oerr.replace(/\+/g, ' '));
+    showAuth('signin');
+    showAuthErr(msg);
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+
   if (window.location.hash.includes('access_token') ||
       window.location.search.includes('code=')) {
     try {
       await sb.auth.exchangeCodeForSession(window.location.href);
-    } catch(e) {}
+    } catch(e) { showAuth('signin'); showAuthErr('Sign-in failed: ' + (e?.message || e)); }
   }
 
   const { data: { session } } = await sb.auth.getSession();
