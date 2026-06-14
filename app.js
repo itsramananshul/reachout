@@ -176,12 +176,13 @@ async function signInWithGoogle() {
   if (error) showAuthErr(error.message);
 }
 
-// Owner sign-in via ATLAS (ARIA's self-hosted SSO), wired through Supabase's
-// generic OIDC ("keycloak") provider — see SETUP below. Additive: the existing
-// Google + email/password logins are untouched.
+// Owner sign-in via ATLAS (ARIA's self-hosted SSO / authentik), wired through
+// Supabase's Custom OIDC provider (Auto-discovery) registered as `custom:atlas`.
+// (NOT the "keycloak" provider — that hardcodes Keycloak URL paths and 404s on
+// authentik.) Additive: Google + email/password logins are untouched.
 async function signInWithAtlas() {
   const { error } = await sb.auth.signInWithOAuth({
-    provider: 'keycloak',
+    provider: 'custom:atlas',
     options: {
       scopes: 'openid email profile',
       redirectTo: window.location.origin + window.location.pathname,
