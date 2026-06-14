@@ -219,6 +219,9 @@ async function signInWithAtlas() {
     options: {
       scopes: 'openid email profile',
       redirectTo: window.location.origin + window.location.pathname,
+      // Force ATLAS to re-prompt for the password on EVERY sign-in (no silent
+      // SSO) — a real per-app login, not an instant bounce-through.
+      queryParams: { prompt: 'login' },
     }
   });
   if (error) showAuthErr(error.message);
