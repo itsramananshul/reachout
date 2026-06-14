@@ -27,6 +27,7 @@ async function initAuth() {
   // ATLAS/Supabase round-trip silently dumps you back on the landing page).
   const _hp = new URLSearchParams(window.location.hash.replace(/^#/, ''));
   const _qp = new URLSearchParams(window.location.search);
+  const _hadCode = _qp.has('code') || window.location.hash.includes('access_token');
   const _oerr = _hp.get('error_description') || _hp.get('error') ||
                 _qp.get('error_description') || _qp.get('error');
   if (_oerr) {
@@ -77,6 +78,17 @@ async function initAuth() {
 
   const { data: { session } } = await sb.auth.getSession();
   if (session?.user) await enterApp(session);
+
+  // Belt-and-suspenders: if we came back from an OAuth redirect, the session can
+  // land a beat after init (detectSessionInUrl resolves async). Poll briefly so
+  // we never get stuck on the landing page with a valid session in storage.
+  if (!_entered && (_hadCode)) {
+    for (let i = 0; i < 15 && !_entered; i++) {
+      await new Promise((r) => setTimeout(r, 400));
+      const { data } = await sb.auth.getSession();
+      if (data.session?.user) await enterApp(data.session);
+    }
+  }
 }
 
 async function saveGoogleToken(session) {
