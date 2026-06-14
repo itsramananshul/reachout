@@ -219,10 +219,9 @@ async function signInWithAtlas() {
     options: {
       scopes: 'openid email profile',
       redirectTo: window.location.origin + window.location.pathname,
-      // Force ATLAS to re-prompt for the password on EVERY sign-in (no silent
-      // SSO). prompt=login alone wasn't always honored on a fresh session, so
-      // also send max_age=0 — "session must be 0 seconds old" → always re-auth.
-      queryParams: { prompt: 'login', max_age: '0' },
+      // Ask ATLAS to re-prompt for the password (best-effort; the real
+      // guarantee is that Sign Out ends the ATLAS session below).
+      queryParams: { prompt: 'login' },
     }
   });
   if (error) showAuthErr(error.message);
@@ -261,7 +260,12 @@ async function signUp() {
 }
 
 async function signOut() {
-  await sb.auth.signOut();
+  try { await sb.auth.signOut(); } catch (e) {}
+  // Also END the ATLAS SSO session (top-level redirect — the only way the
+  // browser sends the authentik cookie). With no ATLAS session left, the next
+  // "Sign in with ATLAS" is FORCED to ask for the password. ATLAS shows a brief
+  // "You've logged out of ReachOut" page; from there sign in again to verify.
+  window.location.href = 'https://atlas.anshullabs.tech/application/o/reachout/end-session/';
 }
 
 // ════════════════════════════════════════════
