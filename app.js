@@ -219,9 +219,12 @@ async function signInWithAtlas() {
     options: {
       scopes: 'openid email profile',
       redirectTo: window.location.origin + window.location.pathname,
-      // Ask ATLAS to re-prompt for the password (best-effort; the real
-      // guarantee is that Sign Out ends the ATLAS session below).
-      queryParams: { prompt: 'login' },
+      // Force ATLAS to re-ask for the password on EVERY sign-in. Per authentik
+      // authorize.py: prompt=login only re-auths ONCE per session, and max_age=0
+      // is falsy (ignored) — but a small positive max_age re-auths whenever the
+      // session is older than that many seconds (i.e. every real sign-in) and
+      // does NOT loop (post-auth the login is ~0s old). 10s is the sweet spot.
+      queryParams: { prompt: 'login', max_age: '10' },
     }
   });
   if (error) showAuthErr(error.message);
