@@ -36,18 +36,22 @@ async function initAuth() {
     window.history.replaceState({}, document.title, window.location.pathname);
   }
 
+  window.sb = sb; // expose for console debugging: (await sb.auth.getSession()).data.session
   let _entered = false;
   async function enterApp(session) {
     if (_entered || !session?.user) return;
     _entered = true;
     currentUser = session.user;
-    await loadUserData();
-    if (session.provider_token && session.user.app_metadata?.provider === 'google') {
-      await saveGoogleToken(session);
-    }
+    // Open the app FIRST so a data-loading hiccup can't strand you on the landing page.
     window.history.replaceState({}, document.title, window.location.pathname);
     hideAuth();
     showPage('page-app');
+    try {
+      await loadUserData();
+      if (session.provider_token && session.user.app_metadata?.provider === 'google') {
+        await saveGoogleToken(session);
+      }
+    } catch (e) { console.error('loadUserData failed (app still open):', e); }
   }
 
   // Register FIRST so we never miss the session Supabase restores from the
